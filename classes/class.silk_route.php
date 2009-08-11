@@ -245,9 +245,6 @@ class SilkRoute extends SilkObject
 	}
 }
 
-class SilkRouteNotMatchedException extends Exception
-{
-}
 
 # vim:ts=4 sw=4 noet
 ?>
