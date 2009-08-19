@@ -1,8 +1,14 @@
 <?php
 
-class SilkException extends Exception implements ChainOfCommandPattern {
+class SilkException extends Exception {
+// implements ChainOfCommandPattern 
+// OK So I don't have a clue why I was doing the below.
+// I think I had a great idea regarding using some pattern
+// with exception handling, but now I have no clue what it was.
+// maybe it'll come to me again later.
+// Pretend this isn't here.
 
-private $next = null;
+/*private $next = null;
 
 public __construct($message = '', $code) {
     parent::__construct($message, $code);
@@ -27,7 +33,7 @@ public function set_parent($parentException) {
 public function get_parent() {
     return $this->get_next();
 }
-
+*/
 }
 
 ?>
