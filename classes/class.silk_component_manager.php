@@ -44,54 +44,81 @@ class SilkComponentManager extends SilkObject
 	{
 		if (self::find_components())
 		{
-			$component_dir = join_path(ROOT_DIR, 'components');
+            if ($component_dirs = config('component_dirs') == null) {
+                   throw new SilkConfigException('component_dirs not set in config file.'); 
+            }
 
-			foreach(self::get_instance()->components as $one_component)
-			{
-				add_class_directory(join_path($component_dir, $one_component, 'models'));
-				add_class_directory(join_path($component_dir, $one_component, 'controllers'));
-			}
+            foreach ($component_dirs as $component_dir) {
+                if (!is_dir($component_dir)) {
+                    throw new SilkPathNotFoundException("Config File: $configFile");
+                }
+
+                foreach(self::get_instance()->components as $one_component)
+                {
+                    add_class_directory(join_path($component_dir, $one_component, 'models'));
+                    add_class_directory(join_path($component_dir, $one_component, 'controllers'));
+                }
+            }
 		}
 	}
 
 	public static function find_components()
 	{
 		$result = false;
-		$component_dir = join_path(ROOT_DIR, 'components');
+        $component_dirs = config('component_dirs');
+        if ($component_dirs == null) {
+               throw new SilkConfigException('component_dirs not set in config file.'); 
+        }
 
-		foreach (scandir($component_dir) as $one_file)
-		{
-			if ($one_file != '.' && $one_file != '..' && $one_file != '.svn')
-			{
-				if (is_dir(join_path($component_dir, $one_file)))
-				{
-					self::get_instance()->components[] = $one_file;
-					$result = true;
-				}
-			}
-		}
-
+		$component_dirs = (array) $component_dirs;
+        foreach ($component_dirs as $component_dir) {
+            if (!is_dir($component_dir)) {
+                throw new SilkPathNotFoundException("Component Dir: $component_dir");
+            } 
+            foreach (scandir($component_dir) as $one_file)
+            {
+                if ($one_file != '.' && $one_file != '..' && $one_file != '.svn')
+                {
+                    if (is_dir(join_path($component_dir, $one_file)))
+                    {
+                        self::get_instance()->components[] = $one_file;
+                        $result = true;
+                    }
+                }
+            }
+        }
 		return $result;
 	}
 
 	public static function list_components()
 	{
 		$components = array();
-		$component_dir = join_path(ROOT_DIR, 'components');
+        $component_dirs = config('component_dirs');
+        if ($component_dirs == null) {
+               throw new SilkConfigException('component_dirs not set in config file.'); 
+        }
 
-		foreach (scandir($component_dir) as $one_file)
-		{
-			if ($one_file != '.' && $one_file != '..' && $one_file != '.svn')
-			{
-				if (is_dir(join_path($component_dir, $one_file)))
-				{
-					$components[$one_file] = self::list_controllers($one_file);
-				}
-			}
-		}
+        $component_dirs = (array) $component_dirs;
+        foreach ($component_dirs as $component_dir) {
+            if (!is_dir($component_dir)) {
+                throw new SilkPathNotFoundException("Component Dir: $component_dir (Did you forget to put a ./ at the beginning of the path?)");
+            } 
+
+            foreach (scandir($component_dir) as $one_file)
+            {
+                if ($one_file != '.' && $one_file != '..' && $one_file != '.svn')
+                {
+                    if (is_dir(join_path($component_dir, $one_file)))
+                    {
+                        $components[$one_file] = self::list_controllers($one_file);
+                    }
+                }
+            }
+        }
 
 		return $components;
 	}
+	
 	/**
 	 * Dynamically load and return the api object for $component. 
 	 * Api Files should be at a location like: components/component_name/class.component_name_api.php
