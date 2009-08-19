@@ -1,14 +1,67 @@
 ## @file silk.config.yml
+# -------------------------------------------------------------------
 # Defines Silk Framework defaults, paths and settings.
 # All paths are relative to the location of the calling index.php file,
 # which is also defined as ROOT_PATH within silk
+# 
+# Example:
+#   YAML:
+#       component_dirs: 'components';
+#
+# Configuration entries can use [[smarty]] variables so long as
+# the variable is already defined on a preceeding line. 
+#
+# Example:
+#   YAML:
+# 	    config_dir: 'config'
+# 	    config_file: '[[$config_dir]]/setup.yml'
+# 	PHP:
+# 		config('config_file'); // returns 'config/setup.yml' 
+#   
+# some global vars are available:
+# - [[$ROOT_DIR]]
+# - [[$SILK_LIB_DIR]]
+#
+#  YAML List elements can be accessed using standard smarty dot notation:
+#
+# Example:
+#   YAML:
+#       database:
+#           dsn: mysql://root:@localhost/cms_innodb
+#           prefix: silk_
+#   
+#       admin_prefix_example: [[$database.prefix]]_admin_
+#       
+# You can also define other configuration files to be loaded via the 
+# 'config_file' entry. 
+# Use this feature to add additional settings or override settings defined
+# in this file or others. 
+#
+# Example:
+#    YAML:
+#       config_file: 
+#           - '[[$config_dir]]/setup_database.yml'
+#           - '[[$config_dir]]/user_preferences.yml'
+#
+#
+# -------------------------------------------------------------------
+
+# These settings are system defaults and in most cases, should only be changed by 
+# overriding them in the silk application configuration file:
+# (Default is setup.yml in the config_dir).
+
+## @var config_dir Directory containing silk configuration files.
+config_dir: 'config'
 
 ## @var config_file Application config file. Values found in this file will override values set here.
-config_file: 'config/setup.yml'
+config_file: '[[$config_dir]]/setup.yml'
 
 ## @var routes_file Application routes file. Define your application's custom routes here.
-routes_file: 'config/routes.php'
+routes_file: '[[$config_dir]]/routes.php'
+
+## @var component_dirs Directories containing silk components.
+component_dirs: 'components'
 
 ## @var environment Application environment. Options are 'debug', 'testing', 'production'.
-# This should only be changed by the application configuration file.
 environment: 'debug'
+
