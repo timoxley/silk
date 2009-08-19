@@ -70,11 +70,6 @@ function silk_autoload($class_name)
 	
 }
 
-
-function get_prefixes() {
-	return array('class', 'interface');
-}
-
 spl_autoload_register('silk_autoload');
 
 function scan_classes()
@@ -161,13 +156,14 @@ function scan_classes_recursive($dir = '.', &$files)
  * @param $default The value we want to set $silkVar to.
  * @throws SilkVariableNotFoundException If $silkVar doesn't exist and a non-null $default isn't provided.
  * @return The value of $silkVar
+ * @author Tim Oxley
  */
 function get($silkVar, $default = null)
 {
 	try {
 		return SilkApplication::get_instance()->get($silkVar);
 	} catch (InvalidArgumentException $e) {
-		if (null != $default) {
+		if (null !== $default) {
 			SilkApplication::get_instance()->set($silkVar, $default);
 			return SilkApplication::get_instance()->get($silkVar);
 		} 
@@ -182,6 +178,7 @@ function get($silkVar, $default = null)
  * @param $value The value we want to set $silkVar to.
  * @throws SilkVariableNotFoundException If $silkVar doesn't exist and a non-null $default isn't provided.
  * @return The new value of $silkVar
+ * @author Tim Oxley
  */
 function set($silkVar, $value) {
 	return get($silkVar, $value);
@@ -546,39 +543,112 @@ function load_additional_controllers($dir) {
  *
  * @return hash of config file contents
  * @throws SilkFileNotFoundException if either default config files do not exist.
+ * @author Tim Oxley
  */
 function load_config($configFiles = null) {
-	static $modified = null; 
-	static $configHash = null;
+    /* 
+     Helper function for processing config entries
+    */
+    if (!function_exists('modify_array')) {
+        function modify_array(&$parent, &$key, &$value, &$globalConfigHash = null) {
+                static $smarty = null;
+                static $parentConfigHash = null;
+                if ($parentConfigHash == null && $globalConfigHash != null) {
+                    $parentConfigHash =& $globalConfigHash;
+                }
+
+                if ($smarty == null) {
+                    $smarty = smarty();
+                }
+
+                if (is_array($value)) {
+                    foreach($value as $arrKey => $arrValue) {
+                        $value[$arrKey] = modify_array($value, $arrKey, $arrValue, $parentConfigHash);
+                    }
+                    $parent[$key] = $value;
+                } else {
+                    // Process entry as a template
+                    $smarty->_compile_source('temporary template', $value, $_compiled );
+                    @ob_start();
+                    $smarty->_eval('?'.'>' . $_compiled);
+                    $value = @ob_get_contents();
+                    $parent[$key] = $value;
+                    @ob_end_clean();
+                    ob_flush();
+                }
+                //  Reassign smarty stuff 
+                $smarty->clear_all_assign();
+                foreach($parentConfigHash as $confKey => $confValue) {
+                    $smarty->assign($confKey, $confValue);
+                }
+                return $value;
+        }
+    }
+    static $loaded = false;
+	static $modified = array(); 
+	static $configHash = array();
+	static $configsToProcess = array();
+	static $configsProcessed = array();
+
 	// Default config files. Will be added upon if we find more.
 	// Note ordering here is important, to ensure the user config overrides any default settings
 	if (null == $configFiles) {
+        if ($loaded) {
+            return $configHash;
+        } else {
+            $loaded = true;
+        }
 		$configFiles = array(join_path(SILK_LIB_DIR, 'silk.config.yml'));
 	}
 
-	// get any config files
+    // convert single value to an array for loop below.
+    $configFiles = (array) $configFiles;
+    $configsToProcess = $configFiles;
+    $configHash['config_file'] = (array) $configHash['config_file']; 
+
+	// process any config files
 	do {
-		$configFile = array_shift($configFiles);
-		if (is_file($configFile)) {
+		$configFile = array_shift($configsToProcess);
 
-				// only bother loading the file if it has changed since
-				// the last time we read it
-				$current_modified = filemtime($configFile);
-				if ($current_modified != $modified) {
-					$modified = $current_modified;
-					$configHash = SilkYaml::load_file($configFile);
-				}
-				
-				if (isset($configHash['config_file'])) {
-					// add any additional config files seperated by commas, but trim any whitespace.
-					$newConfigs = array_map('trim', explode(',', $configHash['config_file']));	
-					return load_config($newConfigs);	
-				}
-		} else {
-			throw new SilkFileNotFoundException("Config File: $configFile");
+		if (!is_file($configFile)) {
+			throw new SilkPathNotFoundException("Config File: $configFile");
 		}
-	} while(count($configFiles) > 0);
 
+        // only bother loading the file if it has changed since
+        // the last time we read it
+        // (currently useless as it currently won't read same file twice)
+        $current_modified = filemtime($configFile);
+        if ($current_modified != $modified[$configFile]) {
+            $modified[$configFile] = $current_modified;
+
+            $newConfigHash = SilkYaml::load_file($configFile);
+
+            array_push($configsProcessed, $configFile);
+            // Load values into main hash 
+            foreach($newConfigHash as $key => $value) {
+                if (isset($configHash[$key])) {
+                    // TODO Log any collisions
+                } 
+
+                $newConfigHash[$key] = modify_array($configHash, $key, $value, $configHash);
+            }
+
+            // Check to see if there is a new config file to load
+            // and that we haven't already loaded it
+            $configHash['config_file'] = (array) $configHash['config_file'];
+            foreach($configHash['config_file'] as $newConfigFile) {
+                if (!in_array($newConfigFile, $configsProcessed) &&
+                    !in_array($newConfigFile, $configsToProcess)) {
+                    array_push($configsToProcess, $newConfigFile);
+                }
+            }
+        }
+
+	} while(count($configsToProcess) > 0);
+
+    // unset config var because it was set prematurely by
+    // the call to smarty()
+    unset(SilkApplication::get_instance()->variables['config']);
 	return $configHash;
 }
 
@@ -587,18 +657,28 @@ function load_config($configFiles = null) {
  * @return Value of config entry $key
  * @throws SilkInvalidKeyException If the key does not exist in the config file.
  * @see load_config()
+ * @author Tim Oxley
  */
-function config($key) 
+function config($key = null, $default = null) 
 {
 	try {
 		$config = get('config');
 	} catch (Exception $e) {
 		$config = get('config', load_config());
 	}
+    if ($key == null) {
+        return $config;
+    }
 	if (isset($config[$key])) {
 		return $config[$key];
+
+   // Note !== allows passing the empty array as a default 
+    } else if ($default !== null) {
+        $config[$key] = $default;
+        return $config[$key];
 	} else {
 		throw new SilkInvalidKeyException("$key in \$config");
+        //return null;
 	}
 }
 
@@ -606,6 +686,7 @@ function config($key)
  * Handy debugging/utility function for returning the contents of a variable in an html/console friendly manner.
  * Uses var_dump output. Do not leave this function in production code. Debugging use only.
  * @see export_var 
+ * @author Tim Oxley
  */
 function dump_var($var, $title = '', $htmloutput = true, $export_function = 'dump') {
 	return export_var($var, $title, $htmloutput, $export_function);
@@ -622,6 +703,10 @@ function dump_var($var, $title = '', $htmloutput = true, $export_function = 'dum
  * @author Tim Oxley
  */
 function export_var($var, $title = '', $html_output = true, $export_function = 'export') {
+	// Ensure we've flushed buffers so error messages come out in the
+	// correct order!
+	flush();
+    ob_flush();
 	ob_start();	
 	if ($export_function != 'export' || $export_function != 'dump') {
 		$export_function = 'var_export';
@@ -651,6 +736,7 @@ function export_var($var, $title = '', $html_output = true, $export_function = '
  * statements or demo code that should never appear 
  * @param $environment 'debug' or 'production'. Testing environment code should always be the same as production.
  * TODO: set this up properly.
+ * @author Tim Oxley
  */
 /*function environment_only($description, $environment = 'debug') {
 	
