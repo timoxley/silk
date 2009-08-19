@@ -581,6 +581,9 @@ function load_config($configFiles = null) {
                 foreach($parentConfigHash as $confKey => $confValue) {
                     $smarty->assign($confKey, $confValue);
                 }
+                // assign default variables
+                $smarty->assign('SILK_LIB_DIR', SILK_LIB_DIR);
+                $smarty->assign('ROOT_DIR', ROOT_DIR);
                 return $value;
         }
     }
