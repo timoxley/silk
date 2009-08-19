@@ -39,7 +39,7 @@ class SilkCli extends SilkTask implements SilkSingleton {
 	public static function get_instance() {
 		static $parser = null;
 		if (null == $parser) {
-			$parser = new SilkCli();
+			$parser = new get_class();
 		}	
 
 		return $parser;
@@ -159,6 +159,11 @@ class SilkCli extends SilkTask implements SilkSingleton {
 		$this->argc = $argc;
 		$this->argv = $argv;
 
+		// No need to process arguments if there are none.
+        if ($argc <= 1) {
+            $result = $this->parse($argc, $argv);
+        }
+
 		try {
 			// Cut off all aruments after task name so as to not hassle the task
 			// parser ($this) with those details.
@@ -183,16 +188,13 @@ class SilkCli extends SilkTask implements SilkSingleton {
 			$this->displayError($exc->getMessage());
 		}
 	}
-	
-	public function __clone()
-	{
-		
-	}
-	
-	public function __wakeup()
-	{
-		
-	}
+    public function __wakeup() {
+        throw new SilkOperationNotAllowedException("__wakeup not allowed.");
+    }
+
+    public function __clone() {
+        throw new SilkOperationNotAllowedException("__clone not allowed.");
+    }
 }
 
 ?>
